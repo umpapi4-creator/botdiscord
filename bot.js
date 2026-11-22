@@ -6,10 +6,7 @@ import {
 
 // Daftar slash command yang dikirim ke Discord oleh `npm run register`.
 export const commands = [
-  {
-    name: 'ping',
-    description: 'Mengecek apakah bot sedang aktif',
-  },
+  { name: 'ping', description: 'Mengecek apakah bot sedang aktif' },
   {
     name: 'halo',
     description: 'Menyapa kamu atau seseorang',
@@ -22,13 +19,10 @@ export const commands = [
       },
     ],
   },
-  {
-    name: 'help',
-    description: 'Menampilkan daftar perintah bot',
-  },
+  { name: 'help', description: 'Menampilkan daftar perintah bot' },
   {
     name: 'kirim',
-    description: 'Mengirim pesan ke channel tujuan',
+    description: 'Mengirim pesan ke channel tujuan SEBAGAI AKUN DISCORD kamu',
     default_member_permissions: '32',
     options: [
       {
@@ -42,43 +36,55 @@ export const commands = [
   },
 ];
 
+// Simulasi User-Agent desktop Discord agar request dengan user token tidak
+// dianggap anomali.
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9164 Chrome/120.0.6099.291 Electron/28.3.1 Safari/537.36';
+
 function message(content, { ephemeral = false } = {}) {
   return {
     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
     data: {
       content,
-      ...(ephemeral
-        ? { flags: InteractionResponseFlags.EPHEMERAL }
-        : {}),
+      ...(ephemeral ? { flags: InteractionResponseFlags.EPHEMERAL } : {}),
     },
   };
 }
 
 function getOption(interaction, optionName) {
-  return interaction.data?.options?.find(
-    (option) => option.name === optionName,
-  )?.value;
+  return interaction.data?.options?.find((o) => o.name === optionName)?.value;
 }
 
+/**
+ * Kirim pesan ke channel sebagai akun user (DISCORD_USER_TOKEN).
+ * Fallback ke bot token jika user token belum diisi.
+ */
 export async function sendChannelMessage(content) {
   const channelId = process.env.CHANNEL_ID;
+  const userToken = process.env.DISCORD_USER_TOKEN;
   const botToken = process.env.DISCORD_BOT_TOKEN;
+  const token = userToken || botToken;
 
-  if (!channelId || !botToken) {
-    throw new Error('CHANNEL_ID atau DISCORD_BOT_TOKEN belum dikonfigurasi.');
+  if (!channelId || !token) {
+    throw new Error(
+      'CHANNEL_ID / token belum dikonfigurasi (butuh DISCORD_USER_TOKEN).',
+    );
   }
+
+  const usingUserToken = Boolean(userToken);
+  const headers = {
+    Authorization: usingUserToken ? userToken : `Bot ${botToken}`,
+    'Content-Type': 'application/json',
+  };
+  if (usingUserToken) headers['User-Agent'] = USER_AGENT;
 
   const response = await fetch(
     `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         content,
-        // Mencegah teks pengguna memicu @everyone, @here, atau mention lainnya.
         allowed_mentions: { parse: [] },
       }),
     },
@@ -93,7 +99,6 @@ export async function sendChannelMessage(content) {
 }
 
 export async function handleInteraction(interaction) {
-  // Discord mengirim PING saat Interactions Endpoint URL disimpan.
   if (interaction.type === InteractionType.PING) {
     return { type: InteractionResponseType.PONG };
   }
@@ -117,7 +122,6 @@ export async function handleInteraction(interaction) {
       interaction.member?.user?.username ||
       interaction.user?.username ||
       'teman';
-
     return message(`Halo, ${displayName}! 👋`);
   }
 
@@ -127,13 +131,13 @@ export async function handleInteraction(interaction) {
     try {
       await sendChannelMessage(content);
       return message(
-        `Pesan berhasil dikirim ke <#${process.env.CHANNEL_ID}>.`,
+        `Pesan terkirim sebagai akun kamu ke <#${process.env.CHANNEL_ID}>.`,
         { ephemeral: true },
       );
     } catch (error) {
       console.error('Gagal mengirim pesan ke channel:', error);
       return message(
-        'Pesan gagal dikirim. Periksa CHANNEL_ID, bot token, dan izin channel.',
+        'Pesan gagal dikirim. Cek CHANNEL_ID, DISCORD_USER_TOKEN, dan pastikan akunmu ada di channel itu.',
         { ephemeral: true },
       );
     }
@@ -145,8 +149,10 @@ export async function handleInteraction(interaction) {
         '**Daftar command**',
         '`/ping` — cek status bot',
         '`/halo [nama]` — kirim sapaan',
-        '`/kirim pesan:<teks>` — kirim pesan ke channel tujuan',
+        '`/kirim pesan:<teks>` — kirim pesan sebagai akunmu',
         '`/help` — tampilkan bantuan',
+        '',
+        'Pesan dari `/kirim` dan auto-send muncul sebagai **akun Discord kamu sendiri**, bukan bot.',
       ].join('\n'),
       { ephemeral: true },
     );
