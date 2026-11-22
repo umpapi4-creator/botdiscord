@@ -1,0 +1,32 @@
+name: Auto Send Discord Message
+
+on:
+  schedule:
+    # Menit 3, 13, 23, 33, 43, dan 53 setiap jam (UTC).
+    - cron: '3-59/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Panggil endpoint pengiriman Vercel
+        env:
+          AUTO_SEND_URL: ${{ secrets.AUTO_SEND_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$AUTO_SEND_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "AUTO_SEND_URL atau CRON_SECRET belum dibuat di GitHub Actions secrets."
+            exit 1
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$AUTO_SEND_URL"

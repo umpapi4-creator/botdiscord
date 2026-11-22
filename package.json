@@ -1,0 +1,20 @@
+{
+  "name": "discord-bot-vercel",
+  "version": "1.0.0",
+  "description": "Bot Discord berbasis slash command untuk Vercel Functions",
+  "private": true,
+  "type": "module",
+  "main": "bot.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "register": "node scripts/register-commands.js",
+    "check": "node --check bot.js && node --check api/interactions.js && node --check api/auto-send.js && node --check scripts/register-commands.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.4.0",
+    "dotenv": "^18.0.10"
+  }
+}
